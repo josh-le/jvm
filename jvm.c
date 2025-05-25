@@ -62,12 +62,45 @@ void print_stack() {
     }
 }
 
+void write_program_to_file(char *file_path) {
+    FILE *file = fopen(file_path, "wb");
+
+    if (file == NULL) {
+	fprintf(stderr, "ERROR: Could not write to this file path: %s\n", file_path);
+	exit(1);
+    }
+
+    fwrite(program, sizeof(program[0]), PROGRAM_SIZE, file);
+
+    fclose(file);
+}
+
+Inst* read_program_from_file(char *file_path) {
+    FILE *file = fopen(file_path, "rb");
+
+    if (file == NULL) {
+	fprintf(stderr, "ERROR: Could not read from this file path: %s\n", file_path);
+	exit(1);
+    }
+    Inst* instructions = (Inst*)malloc(sizeof(Inst) * MAX_STACK_SIZE);
+
+    fseek(file, 0, SEEK_END);
+    int length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    fread(instructions, sizeof(instructions[0]), length, file);
+
+    fclose(file);
+    return instructions;
+}
+
 int main() {
     int a, b;
+    write_program_to_file("test.jvm");
+    Inst* loaded_program = read_program_from_file("test.jvm");
     for (size_t ip = 0; ip < PROGRAM_SIZE; ip++) {
-	switch(program[ip].type) {
+	switch(loaded_program[ip].type) {
 	    case INST_PUSH:
-		push(program[ip].value);
+		push(loaded_program[ip].value);
 		break;
 	    case INST_POP:
 		pop();
