@@ -3,6 +3,8 @@
 #include <string.h>
 #include <assert.h>
 
+#define MAX_STACK_SIZE 1024
+
 typedef enum {
     INST_PUSH,
     INST_POP,
@@ -17,6 +19,13 @@ typedef struct {
     int value;
     Inst_Set type;
 } Inst;
+
+typedef struct {
+    int stack[MAX_STACK_SIZE];
+    int stack_size;
+    int program_length;
+    Inst* instructions;
+} Machine;
 
 #define DEF_INST_PUSH(x) {.type = INST_PUSH, .value = x}
 #define DEF_INST_POP() {.type = INST_POP}
@@ -33,32 +42,29 @@ Inst program[] = {
 };
 
 #define PROGRAM_SIZE (sizeof(program) / sizeof(program[0]))
-#define MAX_STACK_SIZE 1024
-int stack[MAX_STACK_SIZE];
-int stack_size;
 
-void push(int value) {
-    if (stack_size >= MAX_STACK_SIZE) {
+void push(Machine* machine, int value) {
+    if (machine->stack_size >= MAX_STACK_SIZE) {
 	fprintf(stderr, "ERROR: Stack Overflow\n");
 	exit(1);
     }
-    stack[stack_size] = value;
-    stack_size++;
+    machine->stack[machine->stack_size] = value;
+    machine->stack_size++;
 }
 
-int pop() {
-    if (stack_size <= 0) {
+int pop(Machine* machine) {
+    if (machine->stack_size <= 0) {
 	fprintf(stderr, "ERROR: Stack Underflow\n");
 	exit(1);
     }
-    return stack[--stack_size];
+    return machine->stack[--machine->stack_size];
 }
 
-void print_stack() {
+void print_stack(Machine* machine) {
     printf("Stack: \n");
-    if (stack_size == 0) printf("EMPTY\n");
-    for (int i = 0; i < stack_size; i++) {
-	printf("%d. %d\n", i, stack[i]);
+    if (machine->stack_size == 0) printf("EMPTY\n");
+    for (int i = 0; i < machine->stack_size; i++) {
+	printf("%d. %d\n", i, machine->stack[i]);
     }
 }
 
@@ -75,7 +81,7 @@ void write_program_to_file(char *file_path) {
     fclose(file);
 }
 
-Inst* read_program_from_file(char *file_path) {
+Machine* read_program_from_file(char *file_path) {
     FILE *file = fopen(file_path, "rb");
 
     if (file == NULL) {
@@ -83,55 +89,59 @@ Inst* read_program_from_file(char *file_path) {
 	exit(1);
     }
     Inst* instructions = (Inst*)malloc(sizeof(Inst) * MAX_STACK_SIZE);
+    Machine* machine = (Machine*)malloc(sizeof(Machine));
 
     fseek(file, 0, SEEK_END);
     int length = ftell(file);
     fseek(file, 0, SEEK_SET);
     fread(instructions, sizeof(instructions[0]), length, file);
 
+    machine->program_length = length / 8;
+    machine->instructions = instructions;
+
     fclose(file);
-    return instructions;
+    return machine;
 }
 
 int main() {
     int a, b;
     write_program_to_file("test.jvm");
-    Inst* loaded_program = read_program_from_file("test.jvm");
-    for (size_t ip = 0; ip < PROGRAM_SIZE; ip++) {
-	switch(loaded_program[ip].type) {
+    Machine* loaded_machine = read_program_from_file("test.jvm");
+    for (size_t ip = 0; ip < loaded_machine->program_length; ip++) {
+	switch(loaded_machine->instructions[ip].type) {
 	    case INST_PUSH:
-		push(loaded_program[ip].value);
+		push(loaded_machine, loaded_machine->instructions[ip].value);
 		break;
 	    case INST_POP:
-		pop();
+		pop(loaded_machine);
 		break;
 	    case INST_ADD:
-		a = pop();
-		b = pop();
-		push(a + b);
+		a = pop(loaded_machine);
+		b = pop(loaded_machine);
+		push(loaded_machine, a + b);
 		break;
 	    case INST_SUB:
-		a = pop();
-		b = pop();
-		push(a - b);
+		a = pop(loaded_machine);
+		b = pop(loaded_machine);
+		push(loaded_machine, a - b);
 		break;
 	    case INST_MUL:
-		a = pop();
-		b = pop();
-		push(a * b);
+		a = pop(loaded_machine);
+		b = pop(loaded_machine);
+		push(loaded_machine, a * b);
 		break;
 	    case INST_DIV:
-		a = pop();
-		b = pop();
-		push(a / b);
+		a = pop(loaded_machine);
+		b = pop(loaded_machine);
+		push(loaded_machine, a / b);
 		break;
 	    case INST_PRINT:
-		printf("%d\n", pop());
+		printf("%d\n", pop(loaded_machine));
 		break;
 	}
     }
 
-    print_stack();
+    print_stack(loaded_machine);
 
     return 0;
 }
