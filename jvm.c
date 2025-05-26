@@ -8,6 +8,8 @@
 typedef enum {
     INST_PUSH,
     INST_POP,
+    INST_DUP,
+    INST_SWAP,
     INST_ADD,
     INST_SUB,
     INST_MUL,
@@ -23,12 +25,14 @@ typedef struct {
 typedef struct {
     int stack[MAX_STACK_SIZE];
     int stack_size;
-    int program_length;
+    size_t program_length;
     Inst* instructions;
 } Machine;
 
 #define DEF_INST_PUSH(x) {.type = INST_PUSH, .value = x}
 #define DEF_INST_POP() {.type = INST_POP}
+#define DEF_INST_DUP() {.type = INST_DUP}
+#define DEF_INST_SWAP() {.type = INST_SWAP}
 #define DEF_INST_ADD() {.type = INST_ADD}
 #define DEF_INST_SUB() {.type = INST_SUB}
 #define DEF_INST_MUL() {.type = INST_MUL}
@@ -38,7 +42,7 @@ typedef struct {
 Inst program[] = {
     DEF_INST_PUSH(5),
     DEF_INST_PUSH(10),
-    DEF_INST_DIV(),
+    DEF_INST_SWAP(),
 };
 
 #define PROGRAM_SIZE (sizeof(program) / sizeof(program[0]))
@@ -81,7 +85,7 @@ void write_program_to_file(char *file_path) {
     fclose(file);
 }
 
-Machine* read_program_from_file(char *file_path) {
+void read_program_from_file(Machine* machine, char *file_path) {
     FILE *file = fopen(file_path, "rb");
 
     if (file == NULL) {
@@ -89,7 +93,6 @@ Machine* read_program_from_file(char *file_path) {
 	exit(1);
     }
     Inst* instructions = (Inst*)malloc(sizeof(Inst) * MAX_STACK_SIZE);
-    Machine* machine = (Machine*)malloc(sizeof(Machine));
 
     fseek(file, 0, SEEK_END);
     int length = ftell(file);
@@ -100,48 +103,65 @@ Machine* read_program_from_file(char *file_path) {
     machine->instructions = instructions;
 
     fclose(file);
-    return machine;
 }
 
 int main() {
     int a, b;
     write_program_to_file("test.jvm");
-    Machine* loaded_machine = read_program_from_file("test.jvm");
-    for (size_t ip = 0; ip < loaded_machine->program_length; ip++) {
-	switch(loaded_machine->instructions[ip].type) {
+    Machine* machine = (Machine*)malloc(sizeof(Machine));
+    read_program_from_file(machine, "test.jvm");
+    for (size_t ip = 0; ip < machine->program_length; ip++) {
+	switch(machine->instructions[ip].type) {
 	    case INST_PUSH:
-		push(loaded_machine, loaded_machine->instructions[ip].value);
+		push(machine, machine->instructions[ip].value);
 		break;
 	    case INST_POP:
-		pop(loaded_machine);
+		pop(machine);
+		break;
+	    case INST_DUP:
+		a = pop(machine);
+		push(machine, a);
+		push(machine, a);
+		break;
+	    case INST_SWAP:
+		a = pop(machine);
+		b = pop(machine);
+		push(machine, a);
+		push(machine, b);
 		break;
 	    case INST_ADD:
-		a = pop(loaded_machine);
-		b = pop(loaded_machine);
-		push(loaded_machine, a + b);
+		a = pop(machine);
+		b = pop(machine);
+		push(machine, a + b);
 		break;
 	    case INST_SUB:
-		a = pop(loaded_machine);
-		b = pop(loaded_machine);
-		push(loaded_machine, a - b);
+		a = pop(machine);
+		b = pop(machine);
+		push(machine, a - b);
 		break;
 	    case INST_MUL:
-		a = pop(loaded_machine);
-		b = pop(loaded_machine);
-		push(loaded_machine, a * b);
+		a = pop(machine);
+		b = pop(machine);
+		push(machine, a * b);
 		break;
 	    case INST_DIV:
-		a = pop(loaded_machine);
-		b = pop(loaded_machine);
-		push(loaded_machine, a / b);
+		a = pop(machine);
+		b = pop(machine);
+
+		if (b == 0) {
+		    fprintf(stderr, "ERROR: Dividing by 0.\n");
+		    exit(1);
+		}
+
+		push(machine, a / b);
 		break;
 	    case INST_PRINT:
-		printf("%d\n", pop(loaded_machine));
+		printf("%d\n", pop(machine));
 		break;
 	}
     }
 
-    print_stack(loaded_machine);
+    print_stack(machine);
 
     return 0;
 }
